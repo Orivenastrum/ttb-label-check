@@ -11,7 +11,7 @@ export type ExpectedFields = {
   netContents: string;
 };
 
-// ABV compares on the parsed percentage number, not string distance — a 40% vs
+// ABV compares on the parsed percentage number, not string distance - a 40% vs
 // 45% label must fail even though the strings are only two characters apart.
 function matchAlcohol(expected: string, found: string | null): ReturnType<typeof matchBrand> {
   if (found === null || found.trim() === "") return { status: "MISSING" };

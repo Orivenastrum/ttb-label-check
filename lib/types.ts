@@ -1,5 +1,5 @@
 // The five fields come verbatim from the brief's "Example Distilled Spirits
-// Label Fields" block. That list is the schema — no sixth field.
+// Label Fields" block. That list is the schema - no sixth field.
 export type LabelFields = {
   brandName: string | null;
   classType: string | null;

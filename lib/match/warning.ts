@@ -1,4 +1,4 @@
-// 27 CFR § 16.21 "Mandatory label information" — character-for-character copy of
+// 27 CFR § 16.21 "Mandatory label information" - character-for-character copy of
 // the <EXTRACT> block returned by the eCFR versioner API, verified 2026-08-10:
 // GET https://www.ecfr.gov/api/versioner/v1/full/2026-08-01/title-27.xml?part=16&section=16.21
 // Deliberately a checked-in constant: this matcher must never fetch its reference

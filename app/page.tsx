@@ -42,7 +42,7 @@ function plainReason(c: CheckResult): string {
   }
 }
 
-// Full detail for any failing check — nothing truncated.
+// Full detail for any failing check - nothing truncated.
 function FailureDetail({ c }: { c: CheckResult }) {
   if (c.status !== "MISMATCH" && c.status !== "MISSING") return null;
   const box: React.CSSProperties = {
@@ -73,16 +73,16 @@ function FailureDetail({ c }: { c: CheckResult }) {
         <div style={{ ...box, background: "#fff8e1" }}>
           <strong>Where they first differ</strong> (character {c.diff.at + 1}):
           <br />
-          Required: “…{c.diff.expected}…”
+          Required: "...{c.diff.expected}..."
           <br />
-          On label: “…{c.diff.found}…”
+          On label: "...{c.diff.found}..."
         </div>
       )}
     </div>
   );
 }
 
-// Resize client-side to max 1600px long edge, JPEG q0.8 — the biggest latency win.
+// Resize client-side to max 1600px long edge, JPEG q0.8 - the biggest latency win.
 async function resizeImage(file: File): Promise<{ base64: string; mediaType: "image/jpeg" }> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
@@ -174,7 +174,7 @@ export default function Home() {
           onClick={() => fileInput.current?.click()}
           style={{ ...inputStyle, cursor: "pointer", background: "#f2f2f2", textAlign: "left" }}
         >
-          {file ? `Photo chosen: ${file.name}` : "📷 Choose a label photo…"}
+          {file ? `Photo chosen: ${file.name}` : "📷 Choose a label photo..."}
         </button>
         {preview && (
           <img
@@ -223,7 +223,7 @@ export default function Home() {
           cursor: busy ? "wait" : "pointer",
         }}
       >
-        {busy ? "Checking the label… (a few seconds)" : "Check this label"}
+        {busy ? "Checking the label... (a few seconds)" : "Check this label"}
       </button>
 
       {error && (

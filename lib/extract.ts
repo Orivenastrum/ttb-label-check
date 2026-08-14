@@ -1,4 +1,4 @@
-// extract_label(image) -> LabelFields — the ONLY file that knows a vendor exists
+// extract_label(image) -> LabelFields - the ONLY file that knows a vendor exists
 // (the Marcus seam). A self-hosted OCR implementation drops in behind this same
 // function without touching matching, API, or UI.
 import Anthropic from "@anthropic-ai/sdk";
@@ -27,7 +27,7 @@ export async function extractLabel(
   const response = await client.messages.create(
     {
       model: "claude-opus-5",
-      max_tokens: 1500, // rawText is the biggest cost — cap it
+      max_tokens: 1500, // rawText is the biggest cost - cap it
       thinking: { type: "disabled" }, // latency: R2's 5-second budget
       output_config: {
         effort: "low",
@@ -40,13 +40,13 @@ export async function extractLabel(
             { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
             {
               type: "text",
-              text: "Extract the label fields from this alcohol beverage label image. Transcribe the warning statement EXACTLY as printed — preserve capitalization, punctuation, and wording character-for-character. Do not correct or normalize anything.",
+              text: "Extract the label fields from this alcohol beverage label image. Transcribe the warning statement EXACTLY as printed - preserve capitalization, punctuation, and wording character-for-character. Do not correct or normalize anything.",
             },
           ],
         },
       ],
     },
-    { timeout: 10_000, maxRetries: 0 }, // hard timeout, honest error — no retry (it would hide variance)
+    { timeout: 10_000, maxRetries: 0 }, // hard timeout, honest error - no retry (it would hide variance)
   );
 
   if (response.stop_reason === "refusal") {

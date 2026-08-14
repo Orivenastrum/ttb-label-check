@@ -1,5 +1,5 @@
-﻿// Fuzzy matcher for brand and other free-text fields (R3). Never used for the
-// government warning — that is the separate byte-exact path in warning.ts.
+// Fuzzy matcher for brand and other free-text fields (R3). Never used for the
+// government warning - that is the separate byte-exact path in warning.ts.
 
 export type FuzzyResult = {
   status: "MATCH" | "MATCH_WITH_NOTE" | "MISMATCH" | "MISSING";
@@ -31,7 +31,7 @@ export function matchBrand(expected: string, found: string | null): FuzzyResult 
 
   // No similarity band: normalization already absorbs every benign variant
   // (case, apostrophes, accents, punctuation). A remaining letter difference
-  // is a real misspelling — "OLD TOMM" must reject (fixture #12), and any
+  // is a real misspelling - "OLD TOMM" must reject (fixture #12), and any
   // Levenshtein threshold loose enough to allow it also allows real defects.
   return { status: "MISMATCH" };
 }
