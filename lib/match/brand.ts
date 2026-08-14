@@ -18,25 +18,6 @@ function normalizeKeepCase(s: string): string {
     .trim();
 }
 
-function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length;
-  if (m === 0) return n;
-  if (n === 0) return m;
-  let prev = Array.from({ length: n + 1 }, (_, j) => j);
-  for (let i = 1; i <= m; i++) {
-    const cur = [i];
-    for (let j = 1; j <= n; j++) {
-      cur[j] = Math.min(
-        prev[j] + 1,
-        cur[j - 1] + 1,
-        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
-      );
-    }
-    prev = cur;
-  }
-  return prev[n];
-}
-
 export function matchBrand(expected: string, found: string | null): FuzzyResult {
   if (found === null || found.trim() === "") return { status: "MISSING" };
 
@@ -48,12 +29,10 @@ export function matchBrand(expected: string, found: string | null): FuzzyResult 
     return { status: "MATCH_WITH_NOTE", note: `Capitalization differs: expected "${expected}", label shows "${found}".` };
   }
 
-  const el = e.toLowerCase(), fl = f.toLowerCase();
-  const maxLen = Math.max(el.length, fl.length);
-  const ratio = maxLen === 0 ? 1 : 1 - levenshtein(el, fl) / maxLen;
-  if (ratio >= 0.9) {
-    return { status: "MATCH_WITH_NOTE", note: `Close but not identical: expected "${expected}", label shows "${found}".` };
-  }
+  // No similarity band: normalization already absorbs every benign variant
+  // (case, apostrophes, accents, punctuation). A remaining letter difference
+  // is a real misspelling — "OLD TOMM" must reject (fixture #12), and any
+  // Levenshtein threshold loose enough to allow it also allows real defects.
   return { status: "MISMATCH" };
 }
 

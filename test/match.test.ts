@@ -21,6 +21,10 @@ describe("brand matcher (R3, fuzzy)", () => {
     expect(matchBrand("Stone's Throw", "Stones Throw").status).toBe("MATCH");
   });
 
+  it("one inserted character → MISMATCH (fixture #12: OLD TOMM must reject)", () => {
+    expect(matchBrand("OLD TOM DISTILLERY", "OLD TOMM DISTILLERY").status).toBe("MISMATCH");
+  });
+
   it("extra word → MISMATCH", () => {
     expect(matchBrand("Stone's Throw", "Stone's Throw Winery").status).toBe("MISMATCH");
   });
