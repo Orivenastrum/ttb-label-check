@@ -11,6 +11,23 @@ export type ExpectedFields = {
   netContents: string;
 };
 
+// ABV compares on the parsed percentage number, not string distance — a 40% vs
+// 45% label must fail even though the strings are only two characters apart.
+function matchAlcohol(expected: string, found: string | null): ReturnType<typeof matchBrand> {
+  if (found === null || found.trim() === "") return { status: "MISSING" };
+  const num = (s: string) => {
+    const m = s.match(/(\d+(?:\.\d+)?)\s*%/);
+    return m ? parseFloat(m[1]) : null;
+  };
+  const e = num(expected);
+  const f = num(found);
+  if (e !== null && f !== null) {
+    if (e !== f) return { status: "MISMATCH" };
+    return matchBrand(expected, found); // numbers agree; fuzzy pass surfaces formatting notes
+  }
+  return matchBrand(expected, found);
+}
+
 export function assembleVerdict(
   expected: ExpectedFields,
   found: LabelFields,
@@ -25,7 +42,10 @@ export function assembleVerdict(
     "netContents",
   ];
   for (const field of fuzzyFields) {
-    const r = matchBrand(expected[field], found[field]);
+    const r =
+      field === "alcoholContent"
+        ? matchAlcohol(expected[field], found[field])
+        : matchBrand(expected[field], found[field]);
     checks.push({
       field,
       status: r.status,

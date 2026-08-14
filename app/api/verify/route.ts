@@ -31,10 +31,16 @@ export async function POST(req: Request) {
       extractLabel(body.imageBase64, body.mediaType ?? "image/jpeg"),
     );
   } catch (e) {
-    const msg =
-      e instanceof Error && /timeout|timed out/i.test(e.message)
-        ? "Extraction timed out. Please try again."
-        : "Could not read the label image. Please try again with a clearer photo.";
+    const raw = e instanceof Error ? e.message : String(e);
+    let msg = "Could not read the label image. Please try again with a clearer photo.";
+    if (/timeout|timed out/i.test(raw)) {
+      msg = "Extraction timed out. Please try again.";
+    } else if (/credit balance|billing/i.test(raw)) {
+      msg = "The vision service account is out of credits. Please contact the administrator.";
+    } else if (/authentication|api key|401/i.test(raw)) {
+      msg = "The vision service is not configured correctly (API key problem).";
+    }
+    console.error("extract failed:", raw);
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 
