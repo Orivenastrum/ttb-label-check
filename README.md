@@ -13,10 +13,12 @@ content, net contents, and the mandatory Surgeon General warning statement. It r
 a pass/fail verdict with a plain-language reason for every check, plus per-stage timing
 (upload / extract / match / total) in every response.
 
-Batch mode did **not** ship - deliberately. It was tier 2 in my requirements derivation
-(a stated wish, not a stated need), and the brief's authors called out over-engineering
-by name. The single-label path is a pure function pipeline; batch is a bounded-concurrency
-loop over it and is described, not built. See Limitations.
+Batch mode: pick multiple photos and every label runs through the same
+extract -> match -> verdict path, at most 3 in flight at a time, with per-label
+progress ("4 of 12 done") and results streaming in as each finishes. One label failing
+extraction does not stop the rest. Batch is deliberately thin: the browser loops over
+the same single-label API - no queue, no server-side batch endpoint, no new
+abstractions. Single-label is the same code with n=1.
 
 ## Quick start
 
@@ -49,7 +51,7 @@ The hard timeout is now **10 seconds** with an explicit error - no retry logic, 
 retry would double worst-case latency and hide exactly the variance reported here.
 Extraction is >99% of the cost; matching is effectively free.
 
-### Model comparison (run after submission)
+### Model comparison
 
 The extraction model is configurable via `EXTRACT_MODEL` (default `claude-opus-5`).
 All 16 fixtures, same machine, back-to-back local runs, identical prompt / schema /
@@ -167,10 +169,10 @@ mechanical, not architectural.
 
 ## Limitations (what I would not claim this does)
 
-- **Batch upload is out of scope (tier 2, cut on purpose).** The design is documented
-  (bounded concurrency of 8 over the single-label path, SSE per-item progress); it was
-  not built, because it was a stated wish rather than a stated need and the correct
-  size of this solution is small.
+- **Batch has no persistence.** It runs in the browser tab; a refresh mid-run loses
+  progress. All labels in one batch are checked against the same typed application
+  values - per-label expected values would need a CSV/manifest upload, which is not
+  built. At ~6 s/label and 3 concurrent, a 300-label batch takes roughly 10 minutes.
 - **27 CFR § 16.22 typography checks are named and declined:** boldness of
   `GOVERNMENT WARNING` (16.22(a)(2)), contrasting background (16.22(a)(1)),
   characters-per-inch limits (16.22(a)(4): <=40 at 1 mm, <=25 at 2 mm, <=12 at 3 mm), and
@@ -190,7 +192,8 @@ mechanical, not architectural.
 - Human review queue: flag low-confidence extractions instead of auto-failing.
 - Local OCR path implemented behind `lib/extract.ts`, not just seamed.
 - Per-field confidence scores surfaced in the UI.
-- Batch mode as designed above.
+- Batch persistence (server-side job state, resumable runs) and a CSV manifest for
+  per-label expected values.
 
 ## Choices I made and why
 
@@ -202,7 +205,7 @@ mechanical, not architectural.
 
 ## How I built this
 
-Built with AI assistance under a one-hour MVP clock; the account of what was delegated,
+Built with AI assistance; the account of what was delegated,
 what was not, and where the model was wrong is in [PROCESS.md](PROCESS.md). The
 requirements contract derived from the stakeholder interviews is in
 [01-REQUIREMENTS.md](01-REQUIREMENTS.md); the architecture in

@@ -17,6 +17,13 @@ type Verdict = {
   timing: { upload: number; extract: number; match: number; total: number };
 };
 
+type LabelResult = {
+  name: string;
+  state: "waiting" | "checking" | "done" | "error";
+  verdict?: Verdict;
+  error?: string;
+};
+
 const FIELD_LABELS: Record<string, string> = {
   brandName: "Brand name",
   classType: "Class / type",
@@ -82,6 +89,34 @@ function FailureDetail({ c }: { c: CheckResult }) {
   );
 }
 
+const STATUS_ICON = { MATCH: "✅", MATCH_WITH_NOTE: "🟡", MISMATCH: "❌", MISSING: "❌" };
+
+const OVERALL = {
+  PASS: { text: "✅ This label passes.", bg: "#e8f5e9" },
+  PASS_WITH_NOTES: { text: "🟡 This label passes, with notes.", bg: "#fff8e1" },
+  FAIL: { text: "❌ This label does not pass.", bg: "#fdecea" },
+};
+
+// The per-check list, shared by the single-label view and each batch row.
+function ChecksView({ verdict }: { verdict: Verdict }) {
+  return (
+    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+      {verdict.checks.map((c) => (
+        <li
+          key={c.field}
+          style={{ padding: "12px 0", borderBottom: "1px solid #ddd", display: "flex", gap: 10, flexWrap: "wrap" }}
+        >
+          <span aria-hidden style={{ fontSize: 22 }}>{STATUS_ICON[c.status]}</span>
+          <span style={{ flex: 1, minWidth: 200 }}>
+            <strong>{FIELD_LABELS[c.field] ?? c.field}.</strong> {plainReason(c)}
+            <FailureDetail c={c} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // Resize client-side to max 1600px long edge, JPEG q0.8 - the biggest latency win.
 async function resizeImage(file: File): Promise<{ base64: string; mediaType: "image/jpeg" }> {
   const bitmap = await createImageBitmap(file);
@@ -104,77 +139,103 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 8,
 };
 
-const STATUS_ICON = { MATCH: "✅", MATCH_WITH_NOTE: "🟡", MISMATCH: "❌", MISSING: "❌" };
+const CONCURRENCY = 3;
 
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
   const [fields, setFields] = useState({ brandName: "", classType: "", alcoholContent: "", netContents: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [verdict, setVerdict] = useState<Verdict | null>(null);
+  const [results, setResults] = useState<LabelResult[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  function onFile(f: File | null) {
-    setFile(f);
-    setVerdict(null);
+  function onFiles(list: FileList | null) {
+    const f = list ? Array.from(list) : [];
+    setFiles(f);
+    setResults([]);
     setError(null);
-    setPreview(f ? URL.createObjectURL(f) : null);
+    setPreview(f.length === 1 ? URL.createObjectURL(f[0]) : null);
+  }
+
+  async function checkOne(file: File): Promise<Verdict> {
+    const start = Date.now();
+    const { base64, mediaType } = await resizeImage(file);
+    const uploadMs = Date.now() - start;
+    const res = await fetch("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: base64, mediaType, expected: fields }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Something went wrong. Please try again.");
+    (data as Verdict).timing.upload = uploadMs;
+    return data as Verdict;
   }
 
   async function submit() {
-    if (!file) {
-      setError("Please choose a label photo first.");
+    if (files.length === 0) {
+      setError("Please choose at least one label photo first.");
       return;
     }
     setBusy(true);
     setError(null);
-    setVerdict(null);
-    const start = Date.now();
-    try {
-      const { base64, mediaType } = await resizeImage(file);
-      const uploadMs = Date.now() - start;
-      const res = await fetch("/api/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mediaType, expected: fields }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong. Please try again.");
-      } else {
-        (data as Verdict).timing.upload = uploadMs;
-        setVerdict(data as Verdict);
+    const initial: LabelResult[] = files.map((f) => ({ name: f.name, state: "waiting" }));
+    setResults(initial);
+
+    // Bounded pool: at most CONCURRENCY labels in flight. One failure never
+    // stops the batch - that row records its error and the pool moves on.
+    let next = 0;
+    const worker = async () => {
+      while (true) {
+        const i = next++;
+        if (i >= files.length) return;
+        setResults((r) => r.map((x, j) => (j === i ? { ...x, state: "checking" } : x)));
+        try {
+          const verdict = await checkOne(files[i]);
+          setResults((r) => r.map((x, j) => (j === i ? { ...x, state: "done", verdict } : x)));
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "Something went wrong.";
+          setResults((r) => r.map((x, j) => (j === i ? { ...x, state: "error", error: msg } : x)));
+        }
       }
-    } catch {
-      setError("Something went wrong. Please check your connection and try again.");
-    } finally {
-      setBusy(false);
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker));
+    setBusy(false);
   }
+
+  const doneCount = results.filter((r) => r.state === "done" || r.state === "error").length;
+  const single = files.length === 1;
+  const singleResult = single && results[0]?.state === "done" ? results[0] : null;
+  const singleError = single && results[0]?.state === "error" ? results[0].error : null;
 
   return (
     <main style={{ maxWidth: 680, margin: "0 auto", padding: 24, lineHeight: 1.5 }}>
       <h1 style={{ fontSize: 28 }}>Label Verification</h1>
       <p>
-        Upload a photo of the label, type in what the application says, and press the
-        big button. You will get a clear pass or fail for each item.
+        Upload one label photo, or several at once. Type in what the application says,
+        press the big button, and you will get a clear pass or fail for each label.
       </p>
 
       <section style={{ margin: "24px 0" }}>
-        <h2 style={{ fontSize: 22 }}>1. The label photo</h2>
+        <h2 style={{ fontSize: 22 }}>1. The label photos</h2>
         <input
           ref={fileInput}
           type="file"
           accept="image/*"
+          multiple
           style={{ display: "none" }}
-          onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => onFiles(e.target.files)}
         />
         <button
           onClick={() => fileInput.current?.click()}
           style={{ ...inputStyle, cursor: "pointer", background: "#f2f2f2", textAlign: "left" }}
         >
-          {file ? `Photo chosen: ${file.name}` : "📷 Choose a label photo..."}
+          {files.length === 0
+            ? "📷 Choose one or more label photos..."
+            : files.length === 1
+              ? `Photo chosen: ${files[0].name}`
+              : `${files.length} photos chosen`}
         </button>
         {preview && (
           <img
@@ -187,6 +248,12 @@ export default function Home() {
 
       <section style={{ margin: "24px 0" }}>
         <h2 style={{ fontSize: 22 }}>2. What the application says</h2>
+        {files.length > 1 && (
+          <p style={{ color: "#555", fontSize: 16 }}>
+            The values you enter here are checked against every uploaded label. If your
+            photos are different products, check them one at a time instead.
+          </p>
+        )}
         {(
           [
             ["brandName", "Brand name", "e.g. Old Tom Distillery"],
@@ -223,7 +290,13 @@ export default function Home() {
           cursor: busy ? "wait" : "pointer",
         }}
       >
-        {busy ? "Checking the label... (a few seconds)" : "Check this label"}
+        {busy
+          ? files.length > 1
+            ? `Checking labels... ${doneCount} of ${files.length} done`
+            : "Checking the label... (a few seconds)"
+          : files.length > 1
+            ? `Check these ${files.length} labels`
+            : "Check this label"}
       </button>
 
       {error && (
@@ -232,39 +305,60 @@ export default function Home() {
         </p>
       )}
 
-      {verdict && (
+      {/* Single-label result: identical to the original view */}
+      {singleError && (
+        <p style={{ marginTop: 16, padding: 14, background: "#fdecea", borderRadius: 8, color: "#8a1f1f" }}>
+          {singleError}
+        </p>
+      )}
+      {singleResult?.verdict && (
         <section style={{ marginTop: 24 }}>
-          <h2
-            style={{
-              fontSize: 24,
-              padding: 14,
-              borderRadius: 8,
-              background:
-                verdict.overall === "FAIL" ? "#fdecea" : verdict.overall === "PASS" ? "#e8f5e9" : "#fff8e1",
-            }}
-          >
-            {verdict.overall === "PASS" && "✅ This label passes."}
-            {verdict.overall === "PASS_WITH_NOTES" && "🟡 This label passes, with notes."}
-            {verdict.overall === "FAIL" && "❌ This label does not pass."}
+          <h2 style={{ fontSize: 24, padding: 14, borderRadius: 8, background: OVERALL[singleResult.verdict.overall].bg }}>
+            {OVERALL[singleResult.verdict.overall].text}
+          </h2>
+          <ChecksView verdict={singleResult.verdict} />
+          <p style={{ color: "#555", fontSize: 16 }}>
+            Time taken: {(singleResult.verdict.timing.total / 1000).toFixed(1)} seconds (reading the label:{" "}
+            {(singleResult.verdict.timing.extract / 1000).toFixed(1)}s).
+          </p>
+        </section>
+      )}
+
+      {/* Batch results: one row per label, streaming in as each finishes */}
+      {files.length > 1 && results.length > 0 && (
+        <section style={{ marginTop: 24 }}>
+          <h2 style={{ fontSize: 22 }}>
+            Results ({doneCount} of {results.length} done)
           </h2>
           <ul style={{ listStyle: "none", padding: 0 }}>
-            {verdict.checks.map((c) => (
-              <li
-                key={c.field}
-                style={{ padding: "12px 0", borderBottom: "1px solid #ddd", display: "flex", gap: 10, flexWrap: "wrap" }}
-              >
-                <span aria-hidden style={{ fontSize: 22 }}>{STATUS_ICON[c.status]}</span>
-                <span style={{ flex: 1, minWidth: 200 }}>
-                  <strong>{FIELD_LABELS[c.field] ?? c.field}.</strong> {plainReason(c)}
-                  <FailureDetail c={c} />
-                </span>
+            {results.map((r, i) => (
+              <li key={i} style={{ borderBottom: "1px solid #ddd", padding: "10px 0" }}>
+                {r.state === "waiting" && <span>⏳ <strong>{r.name}</strong> - waiting</span>}
+                {r.state === "checking" && <span>🔎 <strong>{r.name}</strong> - checking...</span>}
+                {r.state === "error" && (
+                  <span>⚠️ <strong>{r.name}</strong> - {r.error}</span>
+                )}
+                {r.state === "done" && r.verdict && (
+                  <details>
+                    <summary style={{ cursor: "pointer", fontSize: 18, padding: "4px 0" }}>
+                      {r.verdict.overall === "PASS" && "✅"}
+                      {r.verdict.overall === "PASS_WITH_NOTES" && "🟡"}
+                      {r.verdict.overall === "FAIL" && "❌"}{" "}
+                      <strong>{r.name}</strong> -{" "}
+                      {r.verdict.overall === "PASS"
+                        ? "passes"
+                        : r.verdict.overall === "PASS_WITH_NOTES"
+                          ? "passes with notes"
+                          : "does not pass"}
+                    </summary>
+                    <div style={{ paddingLeft: 12 }}>
+                      <ChecksView verdict={r.verdict} />
+                    </div>
+                  </details>
+                )}
               </li>
             ))}
           </ul>
-          <p style={{ color: "#555", fontSize: 16 }}>
-            Time taken: {(verdict.timing.total / 1000).toFixed(1)} seconds (reading the label:{" "}
-            {(verdict.timing.extract / 1000).toFixed(1)}s).
-          </p>
         </section>
       )}
     </main>

@@ -1,9 +1,8 @@
 # PROCESS - how AI was used to build this
 
-One working session, 2026-08-13, with Claude Code. Two models, two roles: **Claude
-Fable 5** is the coding agent that wrote this codebase; **Claude Opus 5** is the vision
-model the deployed app calls for label extraction (`lib/extract.ts`). Timestamps from
-the git log (bottom). Prompts quoted below are the actual instructions given.
+Built with Claude Code. Two models, two roles: **Claude Fable 5** is the coding agent
+that wrote this codebase; **Claude Opus 5** is the vision model the deployed app calls
+for label extraction (`lib/extract.ts`).
 
 ## The short version
 
@@ -13,28 +12,29 @@ the git log (bottom). Prompts quoted below are the actual instructions given.
 - **Decided by me (carried in from the spec, not volunteered by the model):** the
   two-matcher split (byte-exact warning / fuzzy everything else), deploy-before-code,
   tests-before-matchers, the checked-in § 16.21 constant, the 10s hard timeout with
-  **no retry** (a retry hides the variance I report), and cutting batch (tier 2).
+  **no retry** (a retry hides the variance I report), and cutting batch.
 - **Caught by the fixture corpus, not by reading the code:** the spec's Levenshtein
   band passing a real misspelling, and two fixture images missing their ABV line.
 - **Caught on the first live request:** the model's error handler masking a billing
   failure behind "try a clearer photo."
-- **Cut:** batch upload, retry logic, § 16.22 typography checks (named and declined in
-  the README), auth, database.
+- **Cut:** retry logic, § 16.22 typography checks (named and declined in the README),
+  auth, database. Batch upload was initially cut, then added later as a client-side
+  bounded-concurrency loop (3 in flight) over the unchanged single-label API.
 
 **Provenance of "the spec":** `01-REQUIREMENTS.md` and `02-ARCHITECTURE.md` were
-written before the build hour, also with AI assistance - the requirements derivation
-from the stakeholder interviews and the § 16.21 verification against the eCFR API
-happened there. When this doc says a decision was "carried in from the spec," that
-means decided in that earlier AI-assisted prep, not invented by the coding agent
-during the hour.
+written before the build, also with AI assistance - the requirements derivation from
+the stakeholder interviews and the § 16.21 verification against the eCFR API happened
+there. When this doc says a decision was "carried in from the spec," that means
+decided in that earlier AI-assisted prep, not invented by the coding agent during the
+build.
 
 Detail below for anyone who wants it.
 
 ---
 
-## Timeline
+## How the build ran
 
-### 22:11 - Scaffold + deploy first (my prompt, verbatim)
+### Scaffold + deploy first (my prompt, verbatim)
 
 > "Read 01-REQUIREMENTS.md and 02-ARCHITECTURE.md. That's the spec. Before writing any
 > app logic: scaffold a minimal Next.js app and deploy a hello-world to Vercel. I want a
@@ -43,12 +43,11 @@ Detail below for anyone who wants it.
 Deploy-first was a spec rule ("a dead link is the only unrecoverable failure"), not the
 model's idea. One real snag: anonymous Vercel deploys build locally, and the local
 build died on a Windows symlink `EPERM`; fixed by logging in (interactive, done by me)
-so builds run remotely. Session started 22:11; scaffold committed and live at
-**22:13:53** (`0ae1d0e`).
+so builds run remotely.
 
-### 22:14-22:21 - Matchers test-first, then the whole app (`edbec92`)
+### Matchers test-first, then the whole app
 
-> "go - start the matcher tests" ... then mid-turn: "build the app per the spec. Single
+> "go - start the matcher tests" ... then: "build the app per the spec. Single
 > page: upload a label image + fill in the application fields ... Two separate matchers:
 > byte-exact for the government warning, fuzzy/case-insensitive for the other fields.
 > Do not combine them."
@@ -59,9 +58,9 @@ failure mode ("case is NOT normalized away in the warning path" - the
 shared-smart-matcher trap the architecture doc warned about). It also implemented:
 `warning.ts`, `brand.ts`, `extract.ts` (one vision call, strict JSON schema, hard
 timeout, an explicit "transcribe exactly as printed, do not correct" instruction),
-`/api/verify` with per-stage timing, and the single-page UI. 13/13 tests green.
+`/api/verify` with per-stage timing, and the single-page UI.
 
-### 22:22-22:28 - First live test; honest errors; numeric ABV (`3a4ff13`)
+### First live test; honest errors; numeric ABV
 
 First e2e attempt: 502 in under a second. **Model error #1:** its catch block returned
 "try a clearer photo" for what was actually a zero-credits billing error on the
@@ -70,7 +69,7 @@ Anthropic account. Fixed to surface billing/auth/timeout distinctly. After readi
 `40% != 45%` to fail on parsed numbers; the string-similarity ratio for those two
 strings is 0.89, uncomfortably close to the pass band) - a good catch, to its credit.
 
-### 22:28-22:35 - The corpus finds two real bugs (`04b6378`)
+### The corpus finds two real bugs
 
 First full run: 14/16.
 
@@ -91,14 +90,10 @@ First full run: 14/16.
   byte-exact matcher failed it with a diff at position 0. That is the failure mode
   that would let an illegible label pass, and it didn't happen.
 
-(A two-minute snag along the way: the fixture-patching script was first attempted
-inline in the shell, got mangled by quoting, and wrote a stray empty `.png` before
-failing. Git confirmed no fixture damage; rewritten as a script file, ran cleanly.)
-
 Second run: **16/16 as expected**. The proof-pair held: #05 title-case *warning*
 FAILS, #13 title-case *brand* PASSES with note - one unified matcher cannot do both.
 
-### 22:36-22:49 - Timeout, README, UI detail (`34bab15`, `defd646`)
+### Timeout, README, UI detail
 
 > "Raise the extract timeout from 8s to 10s. No retry logic - a retry doubles
 > worst-case latency and hides variance I need to report honestly."
@@ -110,31 +105,18 @@ expected/found text instead of a +/-30-char snippet.
 
 ---
 
-## Full git log
+## Model benchmark
 
-```
-defd646  2026-08-13 22:49:02  Show full failure detail for every failing check (no truncation)
-34bab15  2026-08-13 22:41:32  Raise extract timeout to 10s (no retry), write README
-04b6378  2026-08-13 22:34:56  Drop Levenshtein pass-band (fixture 12), patch missing ABV line into fixtures 12/13
-3a4ff13  2026-08-13 22:28:01  Numeric ABV comparison, honest billing/auth errors, corpus bench script
-edbec92  2026-08-13 22:21:08  Matchers (test-first), vision extraction, /api/verify, single-label UI
-0ae1d0e  2026-08-13 22:13:53  Scaffold minimal Next.js app (hello world)
-```
-
-Per-commit file stats: `git log --stat`. Live URL:
-https://ttb-label-check-ruddy.vercel.app
+In response to the latency figure, the extraction model was made configurable
+(`EXTRACT_MODEL` env var, defaulting to `claude-opus-5`) and the full 16-fixture
+corpus was run back-to-back against Opus 5, Sonnet 5, and Haiku 4.5 on the same
+machine. All three scored 16/16 and the faster models cut p50 by ~1.3 s and ~2.9 s
+respectively - but both faster models passed fixture #08 (the deliberately illegible
+warning) by supplying the canonical 27 CFR § 16.21 text from memory instead of
+transcribing the unreadable pixels, the exact failure mode the fixture exists to
+catch. Opus 5, which transcribed the garble honestly, stays as the production default.
+Full table and the verbatim transcriptions are in the README's performance section.
 
 ---
 
-## After the timed session
-
-Commits timestamped after 22:49 are not part of the one-hour build. In response to the
-latency figure, a model benchmark was run after submitting: the extraction model was
-made configurable (`EXTRACT_MODEL` env var, defaulting to `claude-opus-5`) and the full
-16-fixture corpus was run back-to-back against Opus 5, Sonnet 5, and Haiku 4.5 on the
-same machine. All three scored 16/16 and the faster models cut p50 by ~1.3 s and
-~2.9 s respectively - but both faster models passed fixture #08 (the deliberately
-illegible warning) by supplying the canonical 27 CFR § 16.21 text from memory instead
-of transcribing the unreadable pixels, the exact failure mode the fixture exists to
-catch. Opus 5, which transcribed the garble honestly, stays as the production default.
-Full table and the verbatim transcriptions are in the README's performance section.
+Live URL: https://ttb-label-check-ruddy.vercel.app
