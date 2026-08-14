@@ -2,7 +2,7 @@
 import fs from "fs";
 import path from "path";
 
-const BASE = "https://ttb-label-check-ruddy.vercel.app";
+const BASE = process.argv[3] ?? "https://ttb-label-check-ruddy.vercel.app";
 const dir = path.join(process.cwd(), "test-labels");
 const fixtures = JSON.parse(fs.readFileSync(path.join(dir, "fixtures.json"), "utf8"));
 const c = fixtures.cases.find((c) => c.image.startsWith(process.argv[2]));

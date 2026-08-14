@@ -123,3 +123,18 @@ edbec92  2026-08-13 22:21:08  Matchers (test-first), vision extraction, /api/ver
 
 Per-commit file stats: `git log --stat`. Live URL:
 https://ttb-label-check-ruddy.vercel.app
+
+---
+
+## After the timed session
+
+Commits timestamped after 22:49 are not part of the one-hour build. In response to the
+latency figure, a model benchmark was run after submitting: the extraction model was
+made configurable (`EXTRACT_MODEL` env var, defaulting to `claude-opus-5`) and the full
+16-fixture corpus was run back-to-back against Opus 5, Sonnet 5, and Haiku 4.5 on the
+same machine. All three scored 16/16 and the faster models cut p50 by ~1.3 s and
+~2.9 s respectively - but both faster models passed fixture #08 (the deliberately
+illegible warning) by supplying the canonical 27 CFR § 16.21 text from memory instead
+of transcribing the unreadable pixels, the exact failure mode the fixture exists to
+catch. Opus 5, which transcribed the garble honestly, stays as the production default.
+Full table and the verbatim transcriptions are in the README's performance section.

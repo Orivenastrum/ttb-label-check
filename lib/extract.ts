@@ -26,7 +26,7 @@ export async function extractLabel(
 ): Promise<LabelFields> {
   const response = await client.messages.create(
     {
-      model: "claude-opus-5",
+      model: process.env.EXTRACT_MODEL ?? "claude-opus-5",
       max_tokens: 1500, // rawText is the biggest cost - cap it
       thinking: { type: "disabled" }, // latency: R2's 5-second budget
       output_config: {

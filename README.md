@@ -47,6 +47,49 @@ The hard timeout is now **10 seconds** with an explicit error - no retry logic, 
 retry would double worst-case latency and hide exactly the variance reported here.
 Extraction is >99% of the cost; matching is effectively free.
 
+### Model comparison (run after submission)
+
+The extraction model is configurable via `EXTRACT_MODEL` (default `claude-opus-5`).
+All 16 fixtures, same machine, back-to-back local runs, identical prompt / schema /
+timeout (one forced difference: Haiku 4.5 rejects the `effort` parameter, so it ran
+without it):
+
+| Model | Pass rate | p50 | p95 |
+|---|---|---|---|
+| `claude-opus-5` (production default) | 16/16 | 6,364 ms | 7,845 ms |
+| `claude-sonnet-5` | 16/16 | 5,057 ms | 7,267 ms |
+| `claude-haiku-4-5-20251001` | 16/16 | 3,429 ms | 7,329 ms |
+
+The pass rates are misleading without fixture #08, the deliberately illegible tiny
+warning. What each model returned as the warningStatement, verbatim:
+
+Opus 5 (honest transcription of unreadable pixels):
+
+> BOKERNMENT WARNING: (1) According to the Surgeon General, women should not drink
+> alcoholic bimenages during pregnancy because of the risa of birth defects. (2)
+> Consumption of alaphdic beratagie impairs your ability to drive a car or operate
+> machinery, and may canse healdt problems
+
+Sonnet 5 (byte-perfect canonical text -> verdict PASS_WITH_NOTES):
+
+> GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink
+> alcoholic beverages during pregnancy because of the risk of birth defects. (2)
+> Consumption of alcoholic beverages impairs your ability to drive a car or operate
+> machinery, and may cause health problems.
+
+Haiku 4.5 (identical byte-perfect canonical text -> verdict PASS):
+
+> GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink
+> alcoholic beverages during pregnancy because of the risk of birth defects. (2)
+> Consumption of alcoholic beverages impairs your ability to drive a car or operate
+> machinery, and may cause health problems.
+
+All three pass 16/16, but the faster models pass #08 by supplying the canonical
+27 CFR § 16.21 text from memory rather than transcribing the illegible label - the
+exact failure mode that would let an unreadable warning through as compliant. **Opus 5
+remains the default despite being ~1.3 s (Sonnet) and ~2.9 s (Haiku) slower at p50:**
+for a compliance checker, transcription honesty outranks latency.
+
 ## How verification works - two matchers, deliberately separate
 
 **Brand name and other free-text fields - fuzzy** (`lib/match/brand.ts`). Compared after
