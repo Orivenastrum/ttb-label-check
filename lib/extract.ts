@@ -46,7 +46,7 @@ export async function extractLabel(
         },
       ],
     },
-    { timeout: 8_000, maxRetries: 0 }, // hard timeout, honest error — no silent hang
+    { timeout: 10_000, maxRetries: 0 }, // hard timeout, honest error — no retry (it would hide variance)
   );
 
   if (response.stop_reason === "refusal") {
