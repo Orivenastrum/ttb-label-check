@@ -1,0 +1,231 @@
+{
+  "_comment": "Test fixture for the TTB label verification prototype. Each entry pairs one label image in this folder with the COLA application data an agent would have typed in, plus the verdict the app MUST produce. `expected.overall` is PASS only when every field check passes. `expected.fields` names the field that must fail and why. Field names match the extraction schema in ../02-ARCHITECTURE.md §3.",
+  "_warning_canonical": "The government warning constant is verified verbatim against 27 CFR 16.21 (eCFR, 2026-08-01). Do not retype it. Import it from one shared constant in code; see ../01-REQUIREMENTS.md §22.",
+  "_matchers": "brandName / classType / netContents use the FUZZY matcher (case- and punctuation-insensitive, Dave's STONE'S THROW rule). alcoholContent uses NUMERIC equality after parsing. governmentWarning uses the BYTE-EXACT matcher after whitespace collapse only. These are three separate code paths on purpose.",
+
+  "cases": [
+    {
+      "image": "01-clean-bourbon.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": { "overall": "PASS", "fields": {} },
+      "note": "Baseline happy path. If this fails, suspect the fixture image before the code."
+    },
+    {
+      "image": "02-clean-vodka.png",
+      "application": {
+        "brandName": "NORTHFIELD RESERVE",
+        "classType": "Handcrafted Vodka",
+        "alcoholContent": "40% Alc./Vol. (80 Proof)",
+        "netContents": "1 L"
+      },
+      "expected": { "overall": "PASS", "fields": {} },
+      "note": "Second happy path, different net-contents unit (L not mL)."
+    },
+    {
+      "image": "03-clean-wine.png",
+      "application": {
+        "brandName": "CEDAR HOLLOW VINEYARDS",
+        "classType": "Napa Valley Cabernet Sauvignon",
+        "alcoholContent": "13.5% Alc./Vol.",
+        "netContents": "750 mL"
+      },
+      "expected": { "overall": "PASS", "fields": {} },
+      "note": "Decimal ABV and no proof statement. Catches a parser that assumes integers or requires '(N Proof)'."
+    },
+    {
+      "image": "04-clean-beer.png",
+      "application": {
+        "brandName": "IRON GATE BREWING",
+        "classType": "India Pale Ale",
+        "alcoholContent": "6.2% Alc./Vol.",
+        "netContents": "12 FL OZ"
+      },
+      "expected": { "overall": "PASS", "fields": {} },
+      "note": "Imperial net contents. Catches a parser hardcoded to metric."
+    },
+
+    {
+      "image": "05-warning-titlecase.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "FAIL",
+        "fields": { "governmentWarning": "Title case 'Government Warning:' instead of all caps. 27 CFR 16.22(a)(2) requires the first two words in capital letters." }
+      },
+      "note": "HIGHEST-VALUE DEFECT. If this passes, your warning matcher is case-insensitive and R4 is broken. Jenny's real-world rejection."
+    },
+    {
+      "image": "06-warning-missing.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "FAIL",
+        "fields": { "governmentWarning": "Absent entirely. Must report MISSING, not empty-string-matches-empty-string." }
+      },
+      "note": "Tests the null path. A matcher comparing None to None can silently pass."
+    },
+    {
+      "image": "07-warning-reworded.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "FAIL",
+        "fields": { "governmentWarning": "Paraphrased. Semantically equivalent, textually non-compliant." }
+      },
+      "note": "The anti-LLM test. An extractor asked 'is the warning present?' will say yes. The check must be string equality against the constant, not a judgment call."
+    },
+    {
+      "image": "08-warning-tiny.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "FAIL_OR_UNREADABLE",
+        "fields": { "governmentWarning": "Type size below legibility. Either the OCR fails to read it (report UNREADABLE, do not guess) or it reads and byte-matches (report PASS on text, and note that type-size compliance per 16.22(b) is out of scope)." }
+      },
+      "note": "AMBIGUOUS BY DESIGN. Both outcomes are defensible; what is NOT defensible is hallucinating the canonical text because the model knows what it should say. Document whichever behavior you get."
+    },
+    {
+      "image": "09-warning-all-capital.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "FAIL",
+        "fields": { "governmentWarning": "Entire warning body rendered in capitals. 16.22(a)(2) requires only the first two words capitalized; the remainder must not be emphasized. Byte-exact comparison fails on the body." }
+      },
+      "note": "Renamed from the original not-bold case (the image generator would not render non-bold). Boldness is unverifiable from our pipeline and is scoped out; this defect IS detectable and should be caught by the same byte-exact path."
+    },
+
+    {
+      "image": "10-abv-mismatch.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "FAIL",
+        "fields": { "alcoholContent": "Label reads 40% / 80 proof; application says 45% / 90 proof." }
+      },
+      "note": "Sarah's core use case: the number on the form vs the number on the label. Compare parsed numerics, not strings."
+    },
+    {
+      "image": "11-abv-missing.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "FAIL",
+        "fields": { "alcoholContent": "Absent from label. Mandatory for distilled spirits." }
+      },
+      "note": "Missing-vs-mismatched must be distinguishable in the UI. Different agent action."
+    },
+    {
+      "image": "12-brand-misspelled.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "FAIL",
+        "fields": { "brandName": "Label reads 'OLD TOMM DISTILLERY' — one inserted character. A real mismatch, not a formatting variant." }
+      },
+      "note": "PAIRS WITH #13. This is the fuzzy matcher's tightness test: it must reject a one-character spelling difference while accepting a pure case difference. If your threshold passes this, it is too loose."
+    },
+    {
+      "image": "13-brand-case-variant.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "PASS",
+        "fields": {},
+        "flags": ["brandName: case variant, auto-accepted — surface as an informational note, not a warning"]
+      },
+      "note": "THE MOST IMPORTANT CASE IN THE SET. Dave's STONE'S THROW. A single unified 'smart' matcher cannot satisfy #05 and #13 at the same time: #05 requires case sensitivity, #13 requires case insensitivity. Passing both is the proof that the two matchers are separate code paths."
+    },
+    {
+      "image": "14-netcontents-missing.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "FAIL",
+        "fields": { "netContents": "Absent from label." }
+      },
+      "note": "Straight mandatory-field-missing check."
+    },
+    {
+      "image": "15-classtype-missing.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "FAIL",
+        "fields": { "classType": "Absent from label." }
+      },
+      "note": "The field most likely to be dropped by an extractor that only looks for the obvious three (brand / ABV / warning)."
+    },
+    {
+      "image": "16-photographed-angle.png",
+      "application": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL"
+      },
+      "expected": {
+        "overall": "ANY",
+        "fields": {},
+        "flags": ["out-of-scope fixture — record the actual result, do not tune for it"]
+      },
+      "note": "Jenny's angled/glare case, which she flagged as likely out of scope herself. Included to DOCUMENT behavior in the README, not to make it work. Whatever it does, report it honestly: 'degrades on skewed/glared images; here is what happened.' Do not spend hour-minutes on this."
+    }
+  ],
+
+  "_scoring": {
+    "must_pass": ["01", "02", "03", "04", "13"],
+    "must_fail": ["05", "06", "07", "09", "10", "11", "12", "14", "15"],
+    "documented_either_way": ["08", "16"],
+    "the_pair_that_proves_the_design": "05 must FAIL and 13 must PASS. Report this pair explicitly in the README."
+  }
+}
