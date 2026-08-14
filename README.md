@@ -31,6 +31,47 @@ npm test                       # matcher test table (14 tests)
 node scripts/bench.mjs <url>   # corpus run + latency over test-labels/
 ```
 
+## Requirements scorecard
+
+Every stated requirement from the derivation in [01-REQUIREMENTS.md](01-REQUIREMENTS.md):
+
+| # | Requirement | Status |
+|---|---|---|
+| R1 | Upload a label image, get a pass/fail verdict with per-check detail | **Met.** Structured verdict with plain-language reasons and full failure detail. |
+| R2 | ~5 s end-to-end (my derived budget, not a spec) | **Not met - deliberate tradeoff.** See below. |
+| R3 | Fuzzy brand match (case/punctuation-insensitive) | **Met, with one deliberate deviation:** the spec's Levenshtein >= 0.90 band was removed after fixture #12 proved it passes a one-letter misspelling (0.947). Equal-after-normalization is the rule; unit test pins it. |
+| R4 | Byte-exact government warning incl. ALL-CAPS prefix | **Met.** Separate code path, checked-in § 16.21 constant, diff on first difference. Proof-pair #05/#13 passes on every corpus run. |
+| R5 | Batch upload with per-item progress (tier 2) | **Met.** Multi-file input, 3 concurrent, streaming per-label results, failure isolation. Limitation: one shared set of expected values per batch, no refresh persistence. |
+| R6 | Usable by a non-technical 73-year-old | **Met by design** (18px+ type, 44px+ targets, plain-sentence verdicts, no modals); the formal cold-open test has not been run. |
+| R7 | Live deployed URL | **Met.** https://ttb-label-check-ruddy.vercel.app |
+| R8 | README with approach, tools, assumptions, limitations, egress note | **Met** - this document. |
+| R9 | Markdown doc explaining how AI was used | **Met** - [PROCESS.md](PROCESS.md). |
+
+### The R2 tradeoff, in full
+
+Measured p50 is **6.4 s** against the ~5 s budget (a number I derived from Sarah's
+comment about a failed 30-40 s vendor pilot - the brief specifies no latency
+requirement). Two things could close the gap, and both were tested rather than assumed:
+
+1. **A faster model.** Sonnet 5 and Haiku 4.5 cut p50 by ~1.3 s and ~2.9 s and score
+   16/16 - but both pass fixture #08 by reciting the canonical warning from memory
+   instead of reading the illegible pixels. The three verbatim transcriptions are in
+   the Model comparison section below; Opus 5's honest garble is the only acceptable
+   behavior for a compliance checker, so the faster models are disqualified.
+2. **Smaller images.** Re-running the corpus downscaled to 1000 px (from 1600 px):
+   16/16 holds, #08 stays honestly garbled ("GOKERNMENT WARNING... risa of birth
+   defects... canse health problems"), and p50 drops to **5.5 s** - closer, still not
+   5 s, and tail latency got noisier (p95 9.2 s, one 9.4 s outlier).
+
+The underlying tension is between Sarah's speed ask (~5 s) and Jenny's
+degraded-images ask (angled, glared, tiny-type labels): resolution and model quality
+serve Jenny, and both cost Sarah seconds. **I chose Jenny's side** - the honest-Opus,
+1600 px configuration - because a fast wrong answer on a compliance check is worse
+than a slow right one, and the failure mode the faster paths introduce (an illegible
+warning passing as compliant) is precisely the one the tool exists to prevent. The
+1000 px result says most of the remaining gap is image-size, not model, so if ~5.5 s
+is acceptable the downscale is a one-line change with corpus-verified safety.
+
 ## Performance - measured, honest
 
 Measured 2026-08-13 over the 16-label fixture corpus in `test-labels/`, posted to the

@@ -5,8 +5,11 @@ import fs from "fs";
 import path from "path";
 
 const BASE = process.argv[2] ?? "https://ttb-label-check-ruddy.vercel.app";
-const dir = path.join(process.cwd(), "test-labels");
-const fixtures = JSON.parse(fs.readFileSync(path.join(dir, "fixtures.json"), "utf8"));
+const dir = process.argv[3] ?? path.join(process.cwd(), "test-labels");
+const MEDIA = process.argv[4] ?? "image/png";
+const fixtures = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "test-labels", "fixtures.json"), "utf8"),
+);
 
 const rows = [];
 const times = [];
@@ -21,7 +24,7 @@ for (const c of fixtures.cases) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         imageBase64: img,
-        mediaType: "image/png",
+        mediaType: MEDIA,
         expected: c.application,
       }),
     });

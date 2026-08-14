@@ -35,7 +35,7 @@ cut R7 (deployed URL) or the AI-usage doc.
 
 | # | Requirement | Source | Why tier 2 |
 |---|---|---|---|
-| R5 | Batch upload of ~200–300 items with per-item progress | Sarah's aside: *"if there was some way to handle batch uploads, that would be huge"*; Janet in Seattle has asked for years | A stated **wish**, not a stated need. It is cheap once R1 works (a bounded-concurrency loop over the same path), so build it if time remains — but the hiring team said outright that people were *"over-engineering big time"*, and batch is where that starts. |
+| R5 | Batch upload of ~200–300 items with per-item progress | Sarah's aside: *"if there was some way to handle batch uploads, that would be huge"*; Janet in Seattle has asked for years | A stated **wish**, not a stated need. It is cheap once R1 works (a bounded-concurrency loop over the same path), so build it if time remains — but the hiring team said outright that people were *"over-engineering big time"*, and batch is where that starts. **Status: built** — multi-file input, 3-concurrent client-side loop over the unchanged single-label API, per-label streaming progress, one failure never stops the batch. |
 
 Distinguishing R5 from tier 1 is itself a scored signal: it shows the stated need and the
 stated wish were separated rather than flattened into one undifferentiated backlog.
