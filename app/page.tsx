@@ -35,11 +35,51 @@ function plainReason(c: CheckResult): string {
     case "MISSING":
       return `${label} could not be found on the label.`;
     case "MISMATCH":
-      if (c.field === "warningStatement" && c.diff) {
-        return `The warning statement does not match the required wording. First difference: the label shows "…${c.diff.found}…" where it should say "…${c.diff.expected}…".`;
+      if (c.field === "warningStatement") {
+        return "The warning statement does not match the required wording. The full comparison is shown below.";
       }
-      return `${label} on the label ("${c.found ?? ""}") does not match the application ("${c.expected ?? ""}").`;
+      return `${label} on the label does not match the application. The details are shown below.`;
   }
+}
+
+// Full detail for any failing check — nothing truncated.
+function FailureDetail({ c }: { c: CheckResult }) {
+  if (c.status !== "MISMATCH" && c.status !== "MISSING") return null;
+  const box: React.CSSProperties = {
+    background: "#f7f7f7",
+    border: "1px solid #ddd",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
+    fontSize: 16,
+  };
+  return (
+    <div style={{ marginTop: 4, width: "100%" }}>
+      <div style={box}>
+        <strong>What the application requires:</strong>
+        <br />
+        {c.expected ?? "(nothing provided)"}
+      </div>
+      <div style={box}>
+        <strong>What the label shows:</strong>
+        <br />
+        {c.status === "MISSING" || c.found === null || c.found.trim() === ""
+          ? "(nothing found on the label)"
+          : c.found}
+      </div>
+      {c.diff && (
+        <div style={{ ...box, background: "#fff8e1" }}>
+          <strong>Where they first differ</strong> (character {c.diff.at + 1}):
+          <br />
+          Required: “…{c.diff.expected}…”
+          <br />
+          On label: “…{c.diff.found}…”
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Resize client-side to max 1600px long edge, JPEG q0.8 — the biggest latency win.
@@ -211,10 +251,13 @@ export default function Home() {
             {verdict.checks.map((c) => (
               <li
                 key={c.field}
-                style={{ padding: "12px 0", borderBottom: "1px solid #ddd", display: "flex", gap: 10 }}
+                style={{ padding: "12px 0", borderBottom: "1px solid #ddd", display: "flex", gap: 10, flexWrap: "wrap" }}
               >
                 <span aria-hidden style={{ fontSize: 22 }}>{STATUS_ICON[c.status]}</span>
-                <span>{plainReason(c)}</span>
+                <span style={{ flex: 1, minWidth: 200 }}>
+                  <strong>{FIELD_LABELS[c.field] ?? c.field}.</strong> {plainReason(c)}
+                  <FailureDetail c={c} />
+                </span>
               </li>
             ))}
           </ul>
