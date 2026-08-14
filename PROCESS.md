@@ -1,6 +1,8 @@
 # PROCESS — how AI was used to build this
 
-One working session, 2026-08-13, with Claude Code (Claude Fable 5). Timestamps from
+One working session, 2026-08-13, with Claude Code. Two models, two roles: **Claude
+Fable 5** is the coding agent that wrote this codebase; **Claude Opus 5** is the vision
+model the deployed app calls for label extraction (`lib/extract.ts`). Timestamps from
 the git log (bottom). Prompts quoted below are the actual instructions given.
 
 ## The short version
@@ -25,7 +27,7 @@ Detail below for anyone who wants it.
 
 ## Timeline
 
-### ~22:05 — Scaffold + deploy first (my prompt, verbatim)
+### 22:11 — Scaffold + deploy first (my prompt, verbatim)
 
 > "Read 01-REQUIREMENTS.md and 02-ARCHITECTURE.md. That's the spec. Before writing any
 > app logic: scaffold a minimal Next.js app and deploy a hello-world to Vercel. I want a
@@ -34,7 +36,8 @@ Detail below for anyone who wants it.
 Deploy-first was a spec rule ("a dead link is the only unrecoverable failure"), not the
 model's idea. One real snag: anonymous Vercel deploys build locally, and the local
 build died on a Windows symlink `EPERM`; fixed by logging in (interactive, done by me)
-so builds run remotely. Live at **22:13** (`0ae1d0e`).
+so builds run remotely. Session started 22:11; scaffold committed and live at
+**22:13:53** (`0ae1d0e`).
 
 ### 22:14–22:21 — Matchers test-first, then the whole app (`edbec92`)
 
@@ -81,10 +84,9 @@ First full run: 14/16.
   byte-exact matcher failed it with a diff at position 0. That is the failure mode
   that would let an illegible label pass, and it didn't happen.
 
-**Model error #3 (minor):** the fixture-patching script was first attempted inline in
-the shell, got mangled by quoting, and wrote a stray empty `.png` before failing. Git
-confirmed no fixture damage; rewritten as a script file and run cleanly. Cost: two
-minutes.
+(A two-minute snag along the way: the fixture-patching script was first attempted
+inline in the shell, got mangled by quoting, and wrote a stray empty `.png` before
+failing. Git confirmed no fixture damage; rewritten as a script file, ran cleanly.)
 
 Second run: **16/16 as expected**. The proof-pair held: #05 title-case *warning*
 FAILS, #13 title-case *brand* PASSES with note — one unified matcher cannot do both.
