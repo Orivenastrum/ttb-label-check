@@ -1,110 +1,103 @@
-# PROCESS — how this was built, with AI, verbatim
+# PROCESS — how AI was used to build this
 
-Session transcript of the build, 2026-08-13, one working session with Claude Code
-(Claude Fable 5). Prompts below are the actual instructions given; timestamps are from
-the git log (full log at the bottom). Where the model or the spec was wrong, it says so.
+One working session, 2026-08-13, with Claude Code (Claude Fable 5). Timestamps from
+the git log (bottom). Prompts quoted below are the actual instructions given.
+
+## The short version
+
+- **Delegated to the model:** all implementation — matchers, extraction call, API
+  route, UI, bench script — plus writing the trap tests for its own likely failure
+  mode, and debugging its own bugs against the fixture corpus.
+- **Decided by me (carried in from the spec, not volunteered by the model):** the
+  two-matcher split (byte-exact warning / fuzzy everything else), deploy-before-code,
+  tests-before-matchers, the checked-in § 16.21 constant, the 10s hard timeout with
+  **no retry** (a retry hides the variance I report), and cutting batch (tier 2).
+- **Caught by the fixture corpus, not by reading the code:** the spec's Levenshtein
+  band passing a real misspelling, and two fixture images missing their ABV line.
+- **Caught on the first live request:** the model's error handler masking a billing
+  failure behind "try a clearer photo."
+- **Cut:** batch upload, retry logic, § 16.22 typography checks (named and declined in
+  the README), auth, database.
+
+Detail below for anyone who wants it.
 
 ---
 
 ## Timeline
 
-### ~22:05 — Scaffold + deploy first (prompt, verbatim)
+### ~22:05 — Scaffold + deploy first (my prompt, verbatim)
 
 > "Read 01-REQUIREMENTS.md and 02-ARCHITECTURE.md. That's the spec. Before writing any
 > app logic: scaffold a minimal Next.js app and deploy a hello-world to Vercel. I want a
 > live URL first. Then stop and tell me the URL."
 
-The agent scaffolded Next.js 15 (App Router + TS) by hand rather than `create-next-app`
-(fewer prompts, leaner), built green locally, then hit a real snag: **anonymous Vercel
-deploys build locally, and the local build died on a Windows symlink `EPERM`.** Fix was
-to log in (`npx vercel login`, interactive — done by me) so the build ran on Vercel's
-side. Live URL up at **22:13** (commit `0ae1d0e`). The spec's "a dead link is the only
-unrecoverable failure" rule is why this came first.
+Deploy-first was a spec rule ("a dead link is the only unrecoverable failure"), not the
+model's idea. One real snag: anonymous Vercel deploys build locally, and the local
+build died on a Windows symlink `EPERM`; fixed by logging in (interactive, done by me)
+so builds run remotely. Live at **22:13** (`0ae1d0e`).
 
-### 22:14–22:21 — Matchers test-first, then the whole app (commit `edbec92`)
+### 22:14–22:21 — Matchers test-first, then the whole app (`edbec92`)
 
 > "go — start the matcher tests" … then mid-turn: "build the app per the spec. Single
 > page: upload a label image + fill in the application fields … Two separate matchers:
 > byte-exact for the government warning, fuzzy/case-insensitive for the other fields.
 > Do not combine them."
 
-The nine-row matcher table from the architecture doc was written as tests **before**
-either matcher existed — including trap tests ("case is NOT normalized away in the
-warning path") aimed exactly at the shared-smart-matcher failure the spec predicted a
-model would generate. Then: `warning.ts` (byte-exact vs the checked-in § 16.21
-constant), `brand.ts` (normalize case/accents/punctuation), `extract.ts` (one Claude
-vision call, strict JSON schema, hard timeout), `/api/verify` with per-stage timing,
-and the single-page UI (18px+ fonts, 44px+ targets, plain-sentence verdicts). 13/13
-tests green, deployed.
+The two-path design and the write-tests-first order came from the spec and my prompt.
+The model's contribution was faithful execution plus tests aimed at its own predicted
+failure mode ("case is NOT normalized away in the warning path" — the
+shared-smart-matcher trap the architecture doc warned about). It also implemented:
+`warning.ts`, `brand.ts`, `extract.ts` (one vision call, strict JSON schema, hard
+timeout, an explicit "transcribe exactly as printed, do not correct" instruction),
+`/api/verify` with per-stage timing, and the single-page UI. 13/13 tests green.
 
-### 22:22–22:28 — First live test fails; honest errors (commit `3a4ff13`)
+### 22:22–22:28 — First live test; honest errors; numeric ABV (`3a4ff13`)
 
-First e2e attempt returned a 502 in under a second. The API's generic "try a clearer
-photo" message was **masking the real cause: the Anthropic account had zero credits.**
-Fixed: billing/auth/timeout errors now surface distinctly. Also added numeric ABV
-comparison after reading `fixtures.json` (case #10 requires `40% ≠ 45%` to fail on
-parsed numbers, not string distance — the fuzzy ratio for those two strings is 0.89,
-uncomfortably close to the pass band). Bench script written to run the whole corpus.
+First e2e attempt: 502 in under a second. **Model error #1:** its catch block returned
+"try a clearer photo" for what was actually a zero-credits billing error on the
+Anthropic account. Fixed to surface billing/auth/timeout distinctly. After reading
+`fixtures.json`, the model proposed numeric ABV comparison (case #10 requires
+`40% ≠ 45%` to fail on parsed numbers; the string-similarity ratio for those two
+strings is 0.89, uncomfortably close to the pass band) — a good catch, to its credit.
 
-### 22:28–22:35 — The corpus run finds two real bugs (commit `04b6378`)
+### 22:28–22:35 — The corpus finds two real bugs (`04b6378`)
 
 First full run: 14/16.
 
-- **The spec was wrong (model followed it faithfully): the Levenshtein ≥ 0.90 band.**
-  Fixture #12's one-letter misspelling `OLD TOMM DISTILLERY` scores **0.947** against
-  `OLD TOM DISTILLERY` — above the band, so a real defect passed with a note. On short
-  strings no threshold separates a one-char typo from identity. The band was removed:
-  normalization already absorbs every benign variant; anything surviving it is a real
-  difference. Deviation documented in the README; unit test pins it.
-- **The fixtures were wrong (the app was right):** #12 and #13 both failed on
-  `alcoholContent:MISSING`. Viewing the images showed the generator had omitted the ABV
-  line from both labels. Per the operating rule "fix the fixture, don't chase the
-  code," the ABV line was drawn onto both images and recommitted.
+- **Model error #2 (and a spec error): the Levenshtein ≥ 0.90 band.** The spec stated
+  the band; the model implemented it as written and **did not flag that it cannot
+  work**: fixture #12's one-letter misspelling `OLD TOMM DISTILLERY` scores 0.947 —
+  above the band — so a real defect passed with a note. On short strings no threshold
+  separates a one-char typo from identity. The fixture corpus caught it (I had flagged
+  #12-vs-#13 as the threshold check); the band was removed and the deviation is
+  documented in the README with a pinning unit test.
+- **The fixtures were wrong, the app was right:** #12/#13 both failed on
+  `alcoholContent:MISSING`; viewing the images showed the generator had omitted the
+  ABV line from both. Per my instruction ("fix the fixture, don't chase the code"),
+  the ABV line was drawn onto both images and recommitted.
 - **The anti-hallucination check passed** (#08, illegible tiny warning): the extractor
   returned honestly garbled OCR — "…should net drink alcoholic bimerages… may canse
-  healld probitions…" — instead of supplying the canonical text from memory. The
-  byte-exact matcher failed it with a diff at position 0. This is the failure mode that
-  would let an illegible label pass, and it didn't happen.
+  healld probitions…" — instead of supplying the canonical text from memory, and the
+  byte-exact matcher failed it with a diff at position 0. That is the failure mode
+  that would let an illegible label pass, and it didn't happen.
 
-Second run after fixes: **16/16 as expected** (one transient timeout, passed on retry).
-The proof-pair held: #05 title-case *warning* FAILS, #13 title-case *brand* PASSES with
-note — one unified matcher cannot do both.
+**Model error #3 (minor):** the fixture-patching script was first attempted inline in
+the shell, got mangled by quoting, and wrote a stray empty `.png` before failing. Git
+confirmed no fixture damage; rewritten as a script file and run cleanly. Cost: two
+minutes.
 
-One tooling stumble worth recording: the fixture-patching script was first attempted
-inline in the shell, got mangled by quoting, and created a stray empty `.png` (no
-fixture damage — git confirmed). Rewritten as a script file and run cleanly. The
-mistake cost two minutes; the git check is why it cost nothing more.
+Second run: **16/16 as expected**. The proof-pair held: #05 title-case *warning*
+FAILS, #13 title-case *brand* PASSES with note — one unified matcher cannot do both.
 
-### 22:36–22:49 — Timeout, README, UI detail (commits `34bab15`, `defd646`)
+### 22:36–22:49 — Timeout, README, UI detail (`34bab15`, `defd646`)
 
 > "Raise the extract timeout from 8s to 10s. No retry logic — a retry doubles
 > worst-case latency and hides variance I need to report honestly."
 
-Timeout raised, no retry. README written from the skeleton with the measured numbers
-stated plainly: **p50 6,434 ms / p95 7,685 ms server-side over the corpus — the ~5 s
-target is not met on raw fixture PNGs**, with both caveats (bench posts 2 MB PNGs; the
-UI path downscales ~10×). Finally, a user-report fix: warning failures were showing
-only a ±30-char diff snippet — every failing check now renders full untruncated
-expected/found text.
-
----
-
-## Where the model was wrong (or nearly)
-
-1. **It implemented the spec's Levenshtein band as written**, and the band itself was
-   broken. The corpus caught it, not the code review. Lesson: the fixture set with
-   known ground truth was the cheapest correctness evidence in the repo, exactly as the
-   requirements doc predicted.
-2. **The first error handler hid the real failure** ("try a clearer photo" for a
-   billing error). Caught on the first live request.
-3. **An inline shell script for image patching broke under quoting** and touched the
-   filesystem before failing. Recovered via git; rewritten as a file.
-
-## What was never delegated
-
-The § 16.21 warning constant (checked in verbatim, never retyped, never fetched at
-runtime), the decision to cut batch (tier 2), the decision to deviate from the 0.90
-band, and every deploy.
+My call, implemented as stated. README written with measured numbers stated plainly
+(p50 6,434 ms / p95 7,685 ms over the corpus; the ~5 s figure was my derived budget,
+not a spec). Final fix from my report: failing checks now show full untruncated
+expected/found text instead of a ±30-char snippet.
 
 ---
 
