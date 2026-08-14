@@ -3,6 +3,8 @@
 **Live: [https://ttb-label-check-ruddy.vercel.app](https://ttb-label-check-ruddy.vercel.app)**
 Upload a label image, get a per-field compliance verdict with timing attached.
 
+![Verdict screen: a title-case government warning fails the byte-exact check while the brand-name case difference passes with a note](docs/screenshot.jpg)
+
 ## What it does
 
 Given a label image and the expected filing values, it extracts the label's text with a
