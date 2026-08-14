@@ -19,8 +19,8 @@ for label extraction (`lib/extract.ts`).
   failure behind "try a clearer photo."
 - **Cut, and why:** retry logic (a retry doubles worst-case latency and hides the
   variance the performance numbers report honestly); § 16.22 typography checks
-  (boldness, contrast, and type size need pixel measurement against a physical scale
-  - named with citations and declined in the README); auth (this is a standalone
+  (boldness, contrast, and type size need pixel measurement against a physical scale,
+  which a single photo can't establish - declined explicitly in the README); auth (this is a standalone
   prototype, not integrated with COLA, so there are no accounts to protect); database
   (nothing sensitive or worth keeping is stored for the exercise - a verdict is
   computed, shown, and discarded).
