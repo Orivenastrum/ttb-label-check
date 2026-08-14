@@ -21,6 +21,13 @@ the git log (bottom). Prompts quoted below are the actual instructions given.
 - **Cut:** batch upload, retry logic, § 16.22 typography checks (named and declined in
   the README), auth, database.
 
+**Provenance of "the spec":** `01-REQUIREMENTS.md` and `02-ARCHITECTURE.md` were
+written before the build hour, also with AI assistance — the requirements derivation
+from the stakeholder interviews and the § 16.21 verification against the eCFR API
+happened there. When this doc says a decision was "carried in from the spec," that
+means decided in that earlier AI-assisted prep, not invented by the coding agent
+during the hour.
+
 Detail below for anyone who wants it.
 
 ---
