@@ -18,8 +18,10 @@ for label extraction (`lib/extract.ts`).
 - **Caught on the first live request:** the model's error handler masking a billing
   failure behind "try a clearer photo."
 - **Cut:** retry logic, § 16.22 typography checks (named and declined in the README),
-  auth, database. Batch upload was initially cut, then added later as a client-side
-  bounded-concurrency loop (3 in flight) over the unchanged single-label API.
+  auth, database.
+- **Batch:** runs as a client-side bounded-concurrency pool (3 in flight) over the
+  unchanged single-label API - no queue, no server-side batch endpoint. The tier-2
+  derivation and status live in the R5 row of `01-REQUIREMENTS.md`.
 
 **Provenance of "the spec":** `01-REQUIREMENTS.md` and `02-ARCHITECTURE.md` were
 written before the build, also with AI assistance - the requirements derivation from
@@ -59,6 +61,15 @@ shared-smart-matcher trap the architecture doc warned about). It also implemente
 `warning.ts`, `brand.ts`, `extract.ts` (one vision call, strict JSON schema, hard
 timeout, an explicit "transcribe exactly as printed, do not correct" instruction),
 `/api/verify` with per-stage timing, and the single-page UI.
+
+The interface targets a non-technical agent audience (the brief specifies "clean,
+obvious, no hunting for buttons" and a 73-year-old benchmark; half the review team is
+over 50). Verdicts render as words - PASS / PASS WITH NOTES / FAIL / ERROR - with
+color as reinforcement rather than the signal, so a colorblind agent reads the same
+result. Field mismatches show the application value against the label value side by
+side in plain language. Progress is announced via an aria-live region because
+extraction takes 5-10 seconds and a silent wait reads as a hang. Styling stays
+inline, with no added dependencies or design system.
 
 ### First live test; honest errors; numeric ABV
 
