@@ -17,8 +17,13 @@ for label extraction (`lib/extract.ts`).
   band passing a real misspelling, and two fixture images missing their ABV line.
 - **Caught on the first live request:** the model's error handler masking a billing
   failure behind "try a clearer photo."
-- **Cut:** retry logic, § 16.22 typography checks (named and declined in the README),
-  auth, database.
+- **Cut, and why:** retry logic (a retry doubles worst-case latency and hides the
+  variance the performance numbers report honestly); § 16.22 typography checks
+  (boldness, contrast, and type size need pixel measurement against a physical scale
+  - named with citations and declined in the README); auth (this is a standalone
+  prototype, not integrated with COLA, so there are no accounts to protect); database
+  (nothing sensitive or worth keeping is stored for the exercise - a verdict is
+  computed, shown, and discarded).
 - **Batch:** runs as a client-side bounded-concurrency pool (3 in flight) over the
   unchanged single-label API - no queue, no server-side batch endpoint. The tier-2
   derivation and status live in the R5 row of `01-REQUIREMENTS.md`.
